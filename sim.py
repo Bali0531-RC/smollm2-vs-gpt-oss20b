@@ -10,6 +10,71 @@ SMOL = "smollm2:135M"
 TURNS = 10  # hány forduló legyen
 MAX_THINKING_LINES = 50  # Max gondolkodási sorok a gpt-oss számára
 
+# Nyelv választék
+LANGUAGES = {
+    "1": {"name": "Magyar", "code": "hu", "instruction": "magyarul"},
+    "2": {"name": "English", "code": "en", "instruction": "in English"},
+    "3": {"name": "Deutsch", "code": "de", "instruction": "auf Deutsch"},
+    "4": {"name": "Español", "code": "es", "instruction": "en español"},
+    "5": {"name": "Français", "code": "fr", "instruction": "en français"},
+}
+
+# Interaktív menü
+def show_menu():
+    print("\n" + "="*60)
+    print("🤖 AI Beszélgetés Generátor")
+    print("="*60)
+    
+    # Nyelv választás
+    print("\n📝 Válassz nyelvet:")
+    for key, lang in LANGUAGES.items():
+        print(f"  {key}. {lang['name']}")
+    
+    while True:
+        lang_choice = input("\nNyelv (1-5): ").strip()
+        if lang_choice in LANGUAGES:
+            selected_lang = LANGUAGES[lang_choice]
+            break
+        print("❌ Érvénytelen választás, próbáld újra!")
+    
+    # Téma választás
+    print(f"\n💡 Milyen témáról beszélgessenek a modellek?")
+    print("   (Példák: 'technológia', 'sport', 'zene', 'tudomány', stb.)")
+    
+    topic = input("\nTéma: ").strip()
+    while not topic:
+        print("❌ A téma nem lehet üres!")
+        topic = input("Téma: ").strip()
+    
+    # Fordulók száma
+    print(f"\n🔄 Hány fordulót szeretnél? (alapértelmezett: 10)")
+    turns_input = input("Fordulók száma: ").strip()
+    turns = int(turns_input) if turns_input.isdigit() and int(turns_input) > 0 else 10
+    
+    print(f"\n✅ Beállítások:")
+    print(f"   Nyelv: {selected_lang['name']}")
+    print(f"   Téma: {topic}")
+    print(f"   Fordulók: {turns}")
+    print("="*60 + "\n")
+    
+    return selected_lang, topic, turns
+
+# Kezdő üzenet generálása
+def generate_initial_message(lang, topic):
+    templates = {
+        "hu": f"Szia! Beszélgessünk a következő témáról: {topic}",
+        "en": f"Hi! Let's talk about: {topic}",
+        "de": f"Hallo! Lass uns über {topic} sprechen",
+        "es": f"¡Hola! Hablemos sobre: {topic}",
+        "fr": f"Salut ! Parlons de : {topic}"
+    }
+    return templates.get(lang['code'], templates['en'])
+
+# Menü megjelenítése
+selected_language, conversation_topic, TURNS = show_menu()
+initial_message = generate_initial_message(selected_language, conversation_topic)
+last_message = initial_message
+
 def stream_output(process, prefix="", color_code=""):
     """Stream subprocess output in real-time."""
     output_lines = []
@@ -26,10 +91,6 @@ def stream_output(process, prefix="", color_code=""):
     
     process.wait()
     return ''.join(output_lines).strip()
-
-# kezdő üzenet a felhasználótól
-initial_message = "Szia! Kezdjünk el beszélgetni."
-last_message = initial_message
 
 # HTML sablon kezdete
 html_template_start = """<!DOCTYPE html>
@@ -221,6 +282,23 @@ html_template_end = """
 </html>
 """
 
+def stream_output(process, prefix="", color_code=""):
+    """Stream subprocess output in real-time."""
+    output_lines = []
+    
+    for line in iter(process.stdout.readline, ''):
+        if line:
+            output_lines.append(line)
+            # Print with color if provided
+            if color_code:
+                sys.stdout.write(f"{color_code}{prefix}{line}\033[0m")
+            else:
+                sys.stdout.write(f"{prefix}{line}")
+            sys.stdout.flush()
+    
+    process.wait()
+    return ''.join(output_lines).strip()
+
 messages_html = []
 
 # Kezdő üzenet
@@ -285,7 +363,7 @@ for turn in range(TURNS):
     # gpt-oss:20b válasz
     print(f"\n\033[94m🧠 gpt-oss:20b gondolkodik...\033[0m")
     big_prompt = f"""Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
-Válaszolj röviden, magyarul a következő üzenetre. GONDOLKOZZ RÖVIDEN, max {MAX_THINKING_LINES} sor!
+Válaszolj röviden, {selected_language['instruction']} a következő üzenetre. GONDOLKOZZ RÖVIDEN, max {MAX_THINKING_LINES} sor!
 {last_message}"""
     
     # Stream output in real-time
@@ -343,7 +421,7 @@ Válaszolj röviden, magyarul a következő üzenetre. GONDOLKOZZ RÖVIDEN, max 
     # smollm2:135M válasz
     print(f"\n\033[93m🐥 smollm2:135M válaszol...\033[0m")
     smol_prompt = f"""Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
-Válaszolj röviden (max 2-3 mondat), magyarul a következő üzenetre.
+Válaszolj röviden (max 2-3 mondat), {selected_language['instruction']} a következő üzenetre.
 Bemenet:
 {last_message}"""
     
@@ -415,11 +493,13 @@ try:
 except FileNotFoundError:
     index_data = {"conversations": []}
 
-# Add new conversation to index
+# Add new conversation to index with metadata
 index_data["conversations"].append({
     "filename": f"conversation_{timestamp_file}.html",
     "preview": initial_message,  # Use the initial message as preview
-    "turns": TURNS
+    "turns": TURNS,
+    "language": selected_language['name'],
+    "topic": conversation_topic
 })
 
 # Sort by filename (newest first)

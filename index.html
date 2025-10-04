@@ -455,10 +455,14 @@
                             <span>🕐</span>
                             <span>${formatDate(conv.date).split(',')[1]}</span>
                         </div>
-                        <div class="card-meta-item">
-                            <span>🧠</span>
-                            <span>AI vs AI</span>
-                        </div>
+                        ${conv.language ? `<div class="card-meta-item">
+                            <span>🌐</span>
+                            <span>${conv.language}</span>
+                        </div>` : ''}
+                        ${conv.topic ? `<div class="card-meta-item">
+                            <span>💡</span>
+                            <span>${conv.topic}</span>
+                        </div>` : ''}
                     </div>
                 </div>
             `).join('');
