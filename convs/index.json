@@ -1,6 +1,15 @@
 {
   "conversations": [
     {
+      "filename": "conversation_20251004_170447.html",
+      "preview": "Szia! Beszélgessünk a következő témáról: Mi a véleményed a mesterséges inteligencia öntudadtra ébredéséről?",
+      "turns": 10,
+      "language": "Magyar",
+      "topic": "Mi a véleményed a mesterséges inteligencia öntudadtra ébredéséről?",
+      "model1": "gpt-oss:20b",
+      "model2": "smollm2:latest"
+    },
+    {
       "filename": "conversation_20251004_164652.html",
       "preview": "Hi! Let's talk about: CS2 Vs Valorant",
       "turns": 15,
