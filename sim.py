@@ -8,7 +8,7 @@ BIG = "gpt-oss:20b"
 SMOL = "smollm2:135M"
 
 TURNS = 10  # hány forduló legyen
-MAX_THINKING_LINES = 50  # Max gondolkodási sorok a gpt-oss számára
+MAX_THINKING_LINES = 150  # Max gondolkodási sorok a gpt-oss számára
 
 # Nyelv választék
 LANGUAGES = {
@@ -100,15 +100,15 @@ def stream_output(process, prefix="", color_code="", timeout=30, max_total_time=
                 sys.stdout.write(f"{prefix}{line}")
             sys.stdout.flush()
             
-            # Real-time spam detection: check last 20 lines
-            if len(output_lines) >= 20:
-                recent_lines = [l.strip() for l in output_lines[-20:] if l.strip()]
+            # Real-time spam detection: check last 30 lines for patterns
+            if len(output_lines) >= 30:
+                recent_lines = [l.strip() for l in output_lines[-30:] if l.strip()]
                 line_counts = Counter(recent_lines)
                 
                 # Method 1: Single line repeated 5+ times
                 for line_text, count in line_counts.items():
                     if count >= 5 and len(line_text) > 5:  # Ignore very short lines
-                        print(f"\n\033[91m⚠️  Real-time spam detected (single line repeat)! Killing process...\033[0m")
+                        print(f"\n\033[91m⚠️  Real-time spam detected (single line {count}x)! Killing process...\033[0m")
                         try:
                             process.kill()
                             process.wait()
@@ -116,19 +116,20 @@ def stream_output(process, prefix="", color_code="", timeout=30, max_total_time=
                             pass
                         return None  # Indicate spam timeout
                 
-                # Method 2: Pattern detection (e.g., "1) ... 2) ..." repeating)
-                # Check if last 10 lines are identical to previous 10 lines
-                if len(output_lines) >= 20:
-                    last_10 = ''.join(output_lines[-10:])
-                    prev_10 = ''.join(output_lines[-20:-10])
-                    if last_10 == prev_10 and len(last_10.strip()) > 20:
-                        print(f"\n\033[91m⚠️  Real-time spam detected (pattern repeat)! Killing process...\033[0m")
-                        try:
-                            process.kill()
-                            process.wait()
-                        except:
-                            pass
-                        return None  # Indicate spam timeout
+                # Method 2: Multi-line pattern detection (e.g., "1) ... 2) ... 3) ..." repeating)
+                # Check if last N lines repeat
+                for pattern_size in [2, 3, 4, 5, 6, 8, 10, 12]:  # Check different pattern sizes
+                    if len(output_lines) >= pattern_size * 2:
+                        last_pattern = ''.join(output_lines[-pattern_size:])
+                        prev_pattern = ''.join(output_lines[-pattern_size*2:-pattern_size])
+                        if last_pattern == prev_pattern and len(last_pattern.strip()) > 30:
+                            print(f"\n\033[91m⚠️  Real-time spam detected ({pattern_size}-line pattern repeat)! Killing process...\033[0m")
+                            try:
+                                process.kill()
+                                process.wait()
+                            except:
+                                pass
+                            return None  # Indicate spam timeout
             
             # Early detection: if same line repeats 3 times in a row, likely spam
             if len(output_lines) >= 3:
