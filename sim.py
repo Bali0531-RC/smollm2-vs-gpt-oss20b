@@ -299,23 +299,6 @@ html_template_end = """
 </html>
 """
 
-def stream_output(process, prefix="", color_code=""):
-    """Stream subprocess output in real-time."""
-    output_lines = []
-    
-    for line in iter(process.stdout.readline, ''):
-        if line:
-            output_lines.append(line)
-            # Print with color if provided
-            if color_code:
-                sys.stdout.write(f"{color_code}{prefix}{line}\033[0m")
-            else:
-                sys.stdout.write(f"{prefix}{line}")
-            sys.stdout.flush()
-    
-    process.wait()
-    return ''.join(output_lines).strip()
-
 messages_html = []
 
 # Kezdő üzenet
