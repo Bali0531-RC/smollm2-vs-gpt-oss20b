@@ -8,7 +8,8 @@ SMOL = "smollm2:135M"
 TURNS = 10  # hány forduló legyen
 
 # kezdő üzenet a felhasználótól
-last_message = "Szia! Kezdjünk el beszélgetni."
+initial_message = "Szia! Kezdjünk el beszélgetni."
+last_message = initial_message
 
 # HTML sablon kezdete
 html_template_start = """<!DOCTYPE html>
@@ -314,7 +315,7 @@ except FileNotFoundError:
 # Add new conversation to index
 index_data["conversations"].append({
     "filename": f"conversation_{timestamp_file}.html",
-    "preview": last_message[:100],  # Use the initial message as preview
+    "preview": initial_message,  # Use the initial message as preview
     "turns": TURNS
 })
 
