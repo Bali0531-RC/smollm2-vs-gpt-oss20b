@@ -1,6 +1,15 @@
 {
   "conversations": [
     {
+      "filename": "conversation_20251004_164652.html",
+      "preview": "Hi! Let's talk about: CS2 Vs Valorant",
+      "turns": 15,
+      "language": "English",
+      "topic": "CS2 Vs Valorant",
+      "model1": "gpt-oss:20b",
+      "model2": "smollm2:latest"
+    },
+    {
       "filename": "conversation_20251004_163825.html",
       "preview": "Szia! Kezdjünk el beszélgetni. (New)",
       "turns": 10
