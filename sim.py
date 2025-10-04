@@ -568,11 +568,11 @@ for turn in range(TURNS):
     big_out_raw = None
     
     while big_regenerate_count < max_retries:
-        print(f"\n\033[94m🧠 gpt-oss:20b gondolkodik...\033[0m")
+        print(f"\n\033[94m🧠 {BIG} gondolkodik...\033[0m")
         if big_regenerate_count > 0:
             print(f"\033[93m⚠️  Újrapróbálás ({big_regenerate_count}/{max_retries})...\033[0m")
         
-        big_prompt = f"""Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
+        big_prompt = f"""Te vagy a {BIG}. Csak a saját nevedben beszélj.
 Válaszolj röviden, {selected_language['instruction']} a következő üzenetre. GONDOLKOZZ RÖVIDEN, max {MAX_THINKING_LINES} sor!
 {last_message}"""
         
@@ -592,7 +592,7 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
             big_regenerate_count += 1
             print(f"\n\033[91m⚠️  Timeout - nincs válasz 30 másodperce\033[0m")
             if big_regenerate_count >= max_retries:
-                big_out_raw = "[ERROR: gpt-oss:20b nem válaszolt időben több próbálkozás után sem]"
+                big_out_raw = f"[ERROR: {BIG} nem válaszolt időben több próbálkozás után sem]"
                 break
             continue
         
@@ -626,7 +626,7 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
         thinking_content = None
         big_out = big_out_raw
     
-    print(f"\n\033[92m✓ gpt-oss:20b válasza rögzítve\033[0m")
+    print(f"\n\033[92m✓ {BIG} válasza rögzítve\033[0m")
     
     # HTML generálás thinking résszel
     thinking_html = ""
@@ -650,7 +650,7 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
             <div class="message big">
                 <div class="message-header">
                     <span class="icon">🧠</span>
-                    <span>gpt-oss:20b</span>
+                    <span>{BIG}</span>
                 </div>
                 <div class="message-content">{big_out}</div>{thinking_html}
                 {regen_notice_big}
@@ -667,11 +667,11 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
     is_spam = False
     
     while smol_regenerate_count < max_retries:
-        print(f"\n\033[93m🐥 smollm2:135M válaszol...\033[0m")
+        print(f"\n\033[93m🐥 {SMOL} válaszol...\033[0m")
         if smol_regenerate_count > 0:
             print(f"\033[93m⚠️  Újrapróbálás ({smol_regenerate_count}/{max_retries})...\033[0m")
         
-        smol_prompt = f"""Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
+        smol_prompt = f"""Te vagy a {SMOL}. Csak a saját nevedben beszélj.
 Válaszolj röviden (max 2-3 mondat), {selected_language['instruction']} a következő üzenetre.
 Bemenet:
 {last_message}"""
@@ -692,7 +692,7 @@ Bemenet:
             smol_regenerate_count += 1
             print(f"\n\033[91m⚠️  Timeout - nincs válasz 30 másodperce\033[0m")
             if smol_regenerate_count >= max_retries:
-                smol_out_raw = "[ERROR: smollm2:135M nem válaszolt időben több próbálkozás után sem]"
+                smol_out_raw = f"[ERROR: {SMOL} nem válaszolt időben több próbálkozás után sem]"
                 break
             continue
         
@@ -726,12 +726,12 @@ Bemenet:
         smol_out_clean = remove_repetitions(smol_out_raw, max_repeats=2)
         smol_out_display = smol_out_clean
         # A kontextbe csak egy rövid összefoglalót küldünk
-        smol_out = "smollm2: [A válasz ismétlődéseket tartalmazott, összefoglalva: Nem értettem pontosan a kérdést.]"
+        smol_out = f"{SMOL}: [A válasz ismétlődéseket tartalmazott, összefoglalva: Nem értettem pontosan a kérdést.]"
         print(f"\n\033[91m⚠️  Ismétlődések észlelve - tisztítva és lerövidítve\033[0m")
     else:
         smol_out = smol_out_raw
         smol_out_display = smol_out_raw
-        print(f"\n\033[92m✓ smollm2:135M válasza rögzítve\033[0m")
+        print(f"\n\033[92m✓ {SMOL} válasza rögzítve\033[0m")
     
     # HTML-be a tisztított változat kerül
     repetition_notice = ""
@@ -746,9 +746,9 @@ Bemenet:
     
     messages_html.append(f"""
             <div class="message small">
-                <div class="message-header">
+                <div class="message-header">also
                     <span class="icon">🐥</span>
-                    <span>smollm2:135M</span>
+                    <span>{SMOL}</span>
                 </div>
                 <div class="message-content">{smol_out_display}</div>
                 {repetition_notice}
@@ -792,7 +792,9 @@ index_data["conversations"].append({
     "preview": initial_message,  # Use the initial message as preview
     "turns": TURNS,
     "language": selected_language['name'],
-    "topic": conversation_topic
+    "topic": conversation_topic,
+    "model1": BIG,
+    "model2": SMOL
 })
 
 # Sort by filename (newest first)
