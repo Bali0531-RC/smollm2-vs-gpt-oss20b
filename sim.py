@@ -268,15 +268,10 @@ Válaszolj röviden, magyarul a következő üzenetre:
     smol_prompt = f"""
 Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
 Válaszolj röviden, magyarul a következő üzenetre.
-Ha a bemenet nem értelmezhető, írj:
-"smollm2: Nem értem a kérdést."
 Bemenet:
 {last_message}
 """
     smol_out = subprocess.check_output(["ollama", "run", SMOL, smol_prompt], text=True).strip()
-    # Ha a modell túl kacifántosan válaszol, átírjuk rövid sablonra
-    if len(smol_out) > 200 or not any(c.isalpha() for c in smol_out):
-        smol_out = "smollm2: Nem értem a kérdést."
     print(f"\n🐥 smollm2:135M:\n{smol_out}")
     
     messages_html.append(f"""
