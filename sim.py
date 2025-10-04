@@ -1,11 +1,13 @@
 import subprocess
 from datetime import datetime
 import re
+from collections import Counter
 
 BIG = "gpt-oss:20b"
 SMOL = "smollm2:135M"
 
 TURNS = 10  # hány forduló legyen
+MAX_THINKING_LINES = 50  # Max gondolkodási sorok a gpt-oss számára
 
 # kezdő üzenet a felhasználótól
 initial_message = "Szia! Kezdjünk el beszélgetni."
@@ -216,21 +218,65 @@ messages_html.append(f"""
 
 thinking_counter = 0
 
+def remove_repetitions(text, max_repeats=3):
+    """Eltávolítja az ismétlődő sorokat, max 3 példányt hagy meg."""
+    lines = text.split('\n')
+    
+    # Csoportosítjuk az egymás utáni azonos sorokat
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        count = 1
+        
+        # Számoljuk, hányszor ismétlődik ugyanaz a sor
+        while i + count < len(lines) and lines[i + count].strip() == line.strip():
+            count += 1
+        
+        # Maximum max_repeats példányt tartunk meg
+        if count > max_repeats:
+            for _ in range(max_repeats):
+                result.append(line)
+            result.append(f"[... {count - max_repeats} ismétlődés kihagyva ...]")
+        else:
+            for _ in range(count):
+                result.append(line)
+        
+        i += count
+    
+    return '\n'.join(result)
+
+def detect_spam_pattern(text):
+    """Detektálja, ha a szöveg túl sok ismétlődést tartalmaz."""
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    if len(lines) < 5:
+        return False
+    
+    # Számoljuk a leggyakoribb sorokat
+    line_counts = Counter(lines)
+    most_common = line_counts.most_common(1)[0]
+    
+    # Ha egy sor több mint 5x ismétlődik, az spam
+    return most_common[1] > 5
+
 for turn in range(TURNS):
     print(f"\n=== Forduló {turn+1} ===")
 
     # gpt-oss:20b válasz
-    big_prompt = f"""
-Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
-Válaszolj röviden, magyarul a következő üzenetre:
-{last_message}
-"""
+    big_prompt = f"""Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
+Válaszolj röviden, magyarul a következő üzenetre. GONDOLKOZZ RÖVIDEN, max {MAX_THINKING_LINES} sor!
+{last_message}"""
+    
     big_out_raw = subprocess.check_output(["ollama", "run", BIG, big_prompt], text=True).strip()
     
-    # Thinking rész kivágása
+    # Thinking rész kivágása és limitálása
     thinking_match = re.search(r'Thinking\.\.\.(.*?)\.\.\.done thinking\.', big_out_raw, re.DOTALL)
     if thinking_match:
         thinking_content = thinking_match.group(1).strip()
+        # Limitáljuk a thinking sorok számát
+        thinking_lines = thinking_content.split('\n')
+        if len(thinking_lines) > MAX_THINKING_LINES:
+            thinking_content = '\n'.join(thinking_lines[:MAX_THINKING_LINES]) + f"\n\n[... {len(thinking_lines) - MAX_THINKING_LINES} további sor kihagyva ...]"
         big_out = re.sub(r'Thinking\.\.\..*?\.\.\.done thinking\.\s*', '', big_out_raw, flags=re.DOTALL).strip()
     else:
         thinking_content = None
@@ -265,14 +311,32 @@ Válaszolj röviden, magyarul a következő üzenetre:
     last_message = big_out
 
     # smollm2:135M válasz
-    smol_prompt = f"""
-Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
-Válaszolj röviden, magyarul a következő üzenetre.
+    smol_prompt = f"""Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
+Válaszolj röviden (max 2-3 mondat), magyarul a következő üzenetre.
 Bemenet:
-{last_message}
-"""
-    smol_out = subprocess.check_output(["ollama", "run", SMOL, smol_prompt], text=True).strip()
-    print(f"\n🐥 smollm2:135M:\n{smol_out}")
+{last_message}"""
+    
+    smol_out_raw = subprocess.check_output(["ollama", "run", SMOL, smol_prompt], text=True).strip()
+    
+    # Ellenőrizzük, van-e spam/ismétlődés
+    is_spam = detect_spam_pattern(smol_out_raw)
+    
+    if is_spam:
+        # Ha spam, tisztítjuk és jelezzük
+        smol_out_clean = remove_repetitions(smol_out_raw, max_repeats=2)
+        smol_out_display = smol_out_clean
+        # A kontextbe csak egy rövid összefoglalót küldünk
+        smol_out = "smollm2: [A válasz ismétlődéseket tartalmazott, összefoglalva: Nem értettem pontosan a kérdést.]"
+        print(f"\n🐥 smollm2:135M (tisztítva, ismétlődések észlelve):\n{smol_out}")
+    else:
+        smol_out = smol_out_raw
+        smol_out_display = smol_out_raw
+        print(f"\n🐥 smollm2:135M:\n{smol_out}")
+    
+    # HTML-be a tisztított változat kerül
+    repetition_notice = ""
+    if is_spam:
+        repetition_notice = '<div style="margin-top: 8px; padding: 8px; background: #3d2b2b; border-left: 3px solid #ff6b6b; border-radius: 4px; font-size: 0.85em; color: #ffb3b3;">⚠️ Megjegyzés: Az eredeti válasz túl sok ismétlődést tartalmazott. A kontextbe egy egyszerűsített verzió került továbbítva.</div>'
     
     messages_html.append(f"""
             <div class="message small">
@@ -280,10 +344,12 @@ Bemenet:
                     <span class="icon">🐥</span>
                     <span>smollm2:135M</span>
                 </div>
-                <div class="message-content">{smol_out}</div>
+                <div class="message-content">{smol_out_display}</div>
+                {repetition_notice}
             </div>
 """)
     
+    # A következő fordulóba a tisztított/egyszerűsített verzió megy
     last_message = smol_out
 
 # HTML összeállítás
