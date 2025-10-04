@@ -84,6 +84,12 @@ def stream_output(process, prefix="", color_code="", timeout=30, max_total_time=
     """
     import time
     from collections import Counter
+    from difflib import SequenceMatcher
+    
+    def similarity(a, b):
+        """Kiszámolja két string hasonlóságát (0.0 - 1.0)."""
+        return SequenceMatcher(None, a, b).ratio()
+    
     output_lines = []
     start_time = time.time()
     last_output_time = time.time()
@@ -100,48 +106,68 @@ def stream_output(process, prefix="", color_code="", timeout=30, max_total_time=
                 sys.stdout.write(f"{prefix}{line}")
             sys.stdout.flush()
             
-            # Real-time spam detection: check last 30 lines for patterns
-            if len(output_lines) >= 30:
-                recent_lines = [l.strip() for l in output_lines[-30:] if l.strip()]
-                line_counts = Counter(recent_lines)
+            # Real-time spam detection: check last 20 lines for patterns
+            if len(output_lines) >= 20:
+                recent_lines = [l.strip() for l in output_lines[-20:] if l.strip()]
                 
-                # Method 1: Single line repeated 5+ times
+                # Method 1: Exact line repetition (5+ times)
+                line_counts = Counter(recent_lines)
                 for line_text, count in line_counts.items():
-                    if count >= 5 and len(line_text) > 5:  # Ignore very short lines
-                        print(f"\n\033[91m⚠️  Real-time spam detected (single line {count}x)! Killing process...\033[0m")
+                    if count >= 5 and len(line_text) > 5:
+                        print(f"\n\033[91m⚠️  Real-time spam detected (exact repeat {count}x)! Killing process...\033[0m")
                         try:
                             process.kill()
                             process.wait()
                         except:
                             pass
-                        return None  # Indicate spam timeout
+                        return None
                 
-                # Method 2: Multi-line pattern detection (e.g., "1) ... 2) ... 3) ..." repeating)
-                # Check if last N lines repeat
-                for pattern_size in [2, 3, 4, 5, 6, 8, 10, 12]:  # Check different pattern sizes
-                    if len(output_lines) >= pattern_size * 2:
-                        last_pattern = ''.join(output_lines[-pattern_size:])
-                        prev_pattern = ''.join(output_lines[-pattern_size*2:-pattern_size])
-                        if last_pattern == prev_pattern and len(last_pattern.strip()) > 30:
-                            print(f"\n\033[91m⚠️  Real-time spam detected ({pattern_size}-line pattern repeat)! Killing process...\033[0m")
+                # Method 2: Similar lines (90%+ similarity, appearing 5+ times)
+                if len(recent_lines) >= 5:
+                    similar_groups = []
+                    for i, line1 in enumerate(recent_lines):
+                        if len(line1) <= 10:  # Skip very short lines
+                            continue
+                        similar_count = 1
+                        for j, line2 in enumerate(recent_lines):
+                            if i != j and len(line2) > 10:
+                                if similarity(line1, line2) >= 0.9:
+                                    similar_count += 1
+                        if similar_count >= 5:
+                            print(f"\n\033[91m⚠️  Real-time spam detected (90%+ similar lines {similar_count}x)! Killing process...\033[0m")
                             try:
                                 process.kill()
                                 process.wait()
                             except:
                                 pass
-                            return None  # Indicate spam timeout
+                            return None
+                
+                # Method 3: Multi-line pattern detection
+                for pattern_size in [6, 8, 10]:
+                    if len(output_lines) >= pattern_size * 2:
+                        last_pattern = ''.join(output_lines[-pattern_size:])
+                        prev_pattern = ''.join(output_lines[-pattern_size*2:-pattern_size])
+                        if similarity(last_pattern, prev_pattern) >= 0.9 and len(last_pattern.strip()) > 30:
+                            print(f"\n\033[91m⚠️  Real-time spam detected ({pattern_size}-line pattern)! Killing process...\033[0m")
+                            try:
+                                process.kill()
+                                process.wait()
+                            except:
+                                pass
+                            return None
             
-            # Early detection: if same line repeats 3 times in a row, likely spam
+            # Early detection: 3 consecutive very similar lines
             if len(output_lines) >= 3:
-                last_3 = [l.strip() for l in output_lines[-3:]]
-                if len(set(last_3)) == 1 and len(last_3[0]) > 10:  # All 3 identical
-                    print(f"\n\033[91m⚠️  Real-time spam detected (3x consecutive)! Killing process...\033[0m")
-                    try:
-                        process.kill()
-                        process.wait()
-                    except:
-                        pass
-                    return None  # Indicate spam timeout
+                last_3 = [l.strip() for l in output_lines[-3:] if l.strip()]
+                if len(last_3) == 3 and all(len(l) > 10 for l in last_3):
+                    if similarity(last_3[0], last_3[1]) >= 0.9 and similarity(last_3[1], last_3[2]) >= 0.9:
+                        print(f"\n\033[91m⚠️  Real-time spam detected (3x consecutive similar)! Killing process...\033[0m")
+                        try:
+                            process.kill()
+                            process.wait()
+                        except:
+                            pass
+                        return None
         
         # Check if process finished
         if process.poll() is not None and not line:
