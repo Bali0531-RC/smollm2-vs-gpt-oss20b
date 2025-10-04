@@ -6,6 +6,15 @@
       "turns": 10
     },
     {
+      "filename": "conversation_20251004_162507.html",
+      "preview": "Hi! Let's talk about: Arch linux vs Ubuntu",
+      "turns": 15,
+      "language": "English",
+      "topic": "Arch linux vs Ubuntu",
+      "model1": "gpt-oss:20b",
+      "model2": "smollm2:135m"
+    },
+    {
       "filename": "conversation_20251004_161149.html",
       "preview": "Szia! Beszélgessünk a következő témáról: Mi az élet értelme",
       "turns": 15,
