@@ -4,9 +4,6 @@ import re
 from collections import Counter
 import sys
 
-BIG = "gpt-oss:20b"
-SMOL = "smollm2:135M"
-
 TURNS = 10  # hány forduló legyen
 MAX_THINKING_LINES = 150  # Max gondolkodási sorok a gpt-oss számára
 
@@ -19,11 +16,77 @@ LANGUAGES = {
     "5": {"name": "Français", "code": "fr", "instruction": "en français"},
 }
 
+# Ollama modellek lekérdezése
+def get_available_models():
+    """Lekérdezi az elérhető Ollama modelleket."""
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = result.stdout.strip().split('\n')
+        models = []
+        # Skip header line
+        for line in lines[1:]:
+            if line.strip():
+                # Model name is the first column
+                model_name = line.split()[0]
+                models.append(model_name)
+        return models
+    except Exception as e:
+        print(f"⚠️  Hiba az Ollama modellek lekérdezésekor: {e}")
+        return []
+
 # Interaktív menü
 def show_menu():
     print("\n" + "="*60)
     print("🤖 AI Beszélgetés Generátor")
     print("="*60)
+    
+    # Modellek lekérdezése
+    print("\n🔍 Elérhető Ollama modellek lekérdezése...")
+    available_models = get_available_models()
+    
+    if not available_models:
+        print("❌ Nem található Ollama modell! Győződj meg róla, hogy az Ollama fut és van telepített modell.")
+        sys.exit(1)
+    
+    print(f"\n📦 Elérhető modellek ({len(available_models)} db):")
+    for idx, model in enumerate(available_models, 1):
+        print(f"  {idx}. {model}")
+    
+    # Első modell választás
+    while True:
+        choice1 = input("\n🤖 Válaszd ki az ELSŐ modellt (szám): ").strip()
+        try:
+            idx1 = int(choice1) - 1
+            if 0 <= idx1 < len(available_models):
+                model1 = available_models[idx1]
+                break
+            else:
+                print(f"❌ Érvénytelen szám! Válassz 1 és {len(available_models)} között.")
+        except ValueError:
+            print("❌ Kérlek, adj meg egy számot!")
+    
+    # Második modell választás
+    while True:
+        choice2 = input(f"\n🤖 Válaszd ki a MÁSODIK modellt (szám, nem lehet '{model1}'): ").strip()
+        try:
+            idx2 = int(choice2) - 1
+            if 0 <= idx2 < len(available_models):
+                model2 = available_models[idx2]
+                if model2 != model1:
+                    break
+                else:
+                    print("❌ A két modell nem lehet azonos!")
+            else:
+                print(f"❌ Érvénytelen szám! Válassz 1 és {len(available_models)} között.")
+        except ValueError:
+            print("❌ Kérlek, adj meg egy számot!")
+    
+    print(f"\n✅ Kiválasztott modellek: {model1} ⚔️  {model2}")
     
     # Nyelv választás
     print("\n📝 Válassz nyelvet:")
@@ -52,12 +115,13 @@ def show_menu():
     turns = int(turns_input) if turns_input.isdigit() and int(turns_input) > 0 else 10
     
     print(f"\n✅ Beállítások:")
+    print(f"   Modellek: {model1} ⚔️  {model2}")
     print(f"   Nyelv: {selected_lang['name']}")
     print(f"   Téma: {topic}")
     print(f"   Fordulók: {turns}")
     print("="*60 + "\n")
     
-    return selected_lang, topic, turns
+    return selected_lang, topic, turns, model1, model2
 
 # Kezdő üzenet generálása
 def generate_initial_message(lang, topic):
@@ -71,7 +135,7 @@ def generate_initial_message(lang, topic):
     return templates.get(lang['code'], templates['en'])
 
 # Menü megjelenítése
-selected_language, conversation_topic, TURNS = show_menu()
+selected_language, conversation_topic, TURNS, BIG, SMOL = show_menu()
 initial_message = generate_initial_message(selected_language, conversation_topic)
 last_message = initial_message
 
@@ -235,6 +299,45 @@ html_template_start = """<!DOCTYPE html>
             margin: 0 auto;
         }
         
+        .model-info {
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent-big);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .model-info h2 {
+            color: var(--accent-big);
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+        
+        .model-info .models {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .model-info .model-item {
+            background: var(--bg-primary);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        
+        .model-info .model-item.first {
+            border: 2px solid var(--accent-big);
+            color: var(--accent-big);
+        }
+        
+        .model-info .model-item.second {
+            border: 2px solid var(--accent-small);
+            color: var(--accent-small);
+        }
+        
         h1 {
             text-align: center;
             margin-bottom: 30px;
@@ -387,6 +490,19 @@ html_template_end = """
 
 messages_html = []
 
+# Modell információk hozzáadása a HTML-hez
+messages_html.append(f"""
+    <div class="container">
+        <h1>🤖 AI Beszélgetés</h1>
+        <div class="model-info">
+            <h2>⚔️  Résztvevő Modellek</h2>
+            <div class="models">
+                <div class="model-item first">🧠 {BIG}</div>
+                <div class="model-item second">🐥 {SMOL}</div>
+            </div>
+        </div>
+""")
+
 # Kezdő üzenet
 messages_html.append(f"""
             <div class="message">
@@ -479,8 +595,22 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
                 big_out_raw = "[ERROR: gpt-oss:20b nem válaszolt időben több próbálkozás után sem]"
                 break
             continue
+        
+        # Thinking rész kivágása (ideiglenes ellenőrzéshez)
+        temp_out = re.sub(r'Thinking\.\.\..*?\.\.\.done thinking\.\s*', '', big_out_raw, flags=re.DOTALL).strip()
+        
+        # Szószám ellenőrzés (CSAK a rendes output, thinking nélkül!)
+        word_count = len(temp_out.split())
+        if word_count > 800:
+            big_regenerate_count += 1
+            print(f"\n\033[91m⚠️  Túl hosszú válasz ({word_count} szó > 800)! Regenerálás...\033[0m")
+            if big_regenerate_count >= max_retries:
+                print(f"\033[91m⚠️  Maximum retry elérve, megtartjuk a hosszú választ\033[0m")
+                break
+            continue
         else:
             # Success
+            print(f"\n\033[92m✓ Válasz elfogadva ({word_count} szó)\033[0m")
             break
     
     # Thinking rész kivágása és limitálása
@@ -576,8 +706,19 @@ Bemenet:
                 # Ha max retry után is spam, megtartjuk de jelezzük
                 break
             continue
+        
+        # Szószám ellenőrzés (800+ szó = spam)
+        word_count = len(smol_out_raw.split())
+        if word_count > 800:
+            smol_regenerate_count += 1
+            print(f"\n\033[91m⚠️  Túl hosszú válasz ({word_count} szó > 800)! Regenerálás...\033[0m")
+            if smol_regenerate_count >= max_retries:
+                print(f"\033[91m⚠️  Maximum retry elérve, megtartjuk a hosszú választ\033[0m")
+                break
+            continue
         else:
-            # Success - no spam, no timeout
+            # Success - no spam, no timeout, not too long
+            print(f"\n\033[92m✓ Válasz elfogadva ({word_count} szó)\033[0m")
             break
     
     if is_spam:
@@ -621,6 +762,10 @@ Bemenet:
 # HTML összeállítás
 print(f"\n{'='*60}")
 print("💾 Beszélgetés mentése...")
+
+# Container lezárása
+messages_html.append("    </div>")  # container vége
+
 timestamp = datetime.now().strftime("%Y. %m. %d. %H:%M:%S")
 html_output = html_template_start + "".join(messages_html) + html_template_end.format(timestamp=timestamp)
 
