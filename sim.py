@@ -75,9 +75,15 @@ selected_language, conversation_topic, TURNS = show_menu()
 initial_message = generate_initial_message(selected_language, conversation_topic)
 last_message = initial_message
 
-def stream_output(process, prefix="", color_code="", timeout=30):
-    """Stream subprocess output in real-time with timeout support."""
+def stream_output(process, prefix="", color_code="", timeout=30, max_total_time=120):
+    """Stream subprocess output in real-time with timeout support.
+    
+    Args:
+        timeout: Seconds of no output before killing (default 30)
+        max_total_time: Maximum total execution time regardless of output (default 60)
+    """
     import time
+    from collections import Counter
     output_lines = []
     start_time = time.time()
     last_output_time = time.time()
@@ -93,13 +99,39 @@ def stream_output(process, prefix="", color_code="", timeout=30):
             else:
                 sys.stdout.write(f"{prefix}{line}")
             sys.stdout.flush()
+            
+            # Real-time spam detection: check last 10 lines
+            if len(output_lines) >= 10:
+                recent_lines = [l.strip() for l in output_lines[-10:] if l.strip()]
+                line_counts = Counter(recent_lines)
+                # If any line appears 5+ times in last 10 lines, it's spam
+                for line_text, count in line_counts.items():
+                    if count >= 5 and len(line_text) > 5:  # Ignore very short lines
+                        print(f"\n\033[91m⚠️  Real-time spam detected! Killing process...\033[0m")
+                        try:
+                            process.kill()
+                            process.wait()
+                        except:
+                            pass
+                        return None  # Indicate spam timeout
         
         # Check if process finished
         if process.poll() is not None and not line:
             break
         
-        # Timeout check: no output for 30 seconds
+        # Timeout check: no output for N seconds
         if time.time() - last_output_time > timeout:
+            print(f"\n\033[91m⚠️  No output timeout! Killing process...\033[0m")
+            try:
+                process.kill()
+                process.wait()
+            except:
+                pass
+            return None  # Indicate timeout
+        
+        # Absolute timeout: maximum total execution time
+        if time.time() - start_time > max_total_time:
+            print(f"\n\033[91m⚠️  Maximum execution time exceeded! Killing process...\033[0m")
             try:
                 process.kill()
                 process.wait()
