@@ -75,21 +75,38 @@ selected_language, conversation_topic, TURNS = show_menu()
 initial_message = generate_initial_message(selected_language, conversation_topic)
 last_message = initial_message
 
-def stream_output(process, prefix="", color_code=""):
-    """Stream subprocess output in real-time."""
+def stream_output(process, prefix="", color_code="", timeout=30):
+    """Stream subprocess output in real-time with timeout support."""
+    import time
     output_lines = []
+    start_time = time.time()
+    last_output_time = time.time()
     
-    for line in iter(process.stdout.readline, ''):
+    while True:
+        line = process.stdout.readline()
         if line:
             output_lines.append(line)
+            last_output_time = time.time()
             # Print with color if provided
             if color_code:
                 sys.stdout.write(f"{color_code}{prefix}{line}\033[0m")
             else:
                 sys.stdout.write(f"{prefix}{line}")
             sys.stdout.flush()
+        
+        # Check if process finished
+        if process.poll() is not None and not line:
+            break
+        
+        # Timeout check: no output for 30 seconds
+        if time.time() - last_output_time > timeout:
+            try:
+                process.kill()
+                process.wait()
+            except:
+                pass
+            return None  # Indicate timeout
     
-    process.wait()
     return ''.join(output_lines).strip()
 
 # HTML sablon kezdete
@@ -360,22 +377,42 @@ for turn in range(TURNS):
     print(f"  Forduló {turn+1}/{TURNS}")
     print(f"{'='*60}")
 
-    # gpt-oss:20b válasz
-    print(f"\n\033[94m🧠 gpt-oss:20b gondolkodik...\033[0m")
-    big_prompt = f"""Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
+    # gpt-oss:20b válasz with retry logic
+    big_regenerate_count = 0
+    max_retries = 3
+    big_out_raw = None
+    
+    while big_regenerate_count < max_retries:
+        print(f"\n\033[94m🧠 gpt-oss:20b gondolkodik...\033[0m")
+        if big_regenerate_count > 0:
+            print(f"\033[93m⚠️  Újrapróbálás ({big_regenerate_count}/{max_retries})...\033[0m")
+        
+        big_prompt = f"""Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
 Válaszolj röviden, {selected_language['instruction']} a következő üzenetre. GONDOLKOZZ RÖVIDEN, max {MAX_THINKING_LINES} sor!
 {last_message}"""
-    
-    # Stream output in real-time
-    process = subprocess.Popen(
-        ["ollama", "run", BIG, big_prompt],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1
-    )
-    
-    big_out_raw = stream_output(process, color_code="\033[96m")
+        
+        # Stream output in real-time
+        process = subprocess.Popen(
+            ["ollama", "run", BIG, big_prompt],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        
+        big_out_raw = stream_output(process, color_code="\033[96m", timeout=30)
+        
+        # Check if timeout occurred
+        if big_out_raw is None:
+            big_regenerate_count += 1
+            print(f"\n\033[91m⚠️  Timeout - nincs válasz 30 másodperce\033[0m")
+            if big_regenerate_count >= max_retries:
+                big_out_raw = "[ERROR: gpt-oss:20b nem válaszolt időben több próbálkozás után sem]"
+                break
+            continue
+        else:
+            # Success
+            break
     
     # Thinking rész kivágása és limitálása
     thinking_match = re.search(r'Thinking\.\.\.(.*?)\.\.\.done thinking\.', big_out_raw, re.DOTALL)
@@ -405,6 +442,11 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
                 </div>
 """
     
+    # Regeneration notice for gpt-oss
+    regen_notice_big = ""
+    if big_regenerate_count > 0:
+        regen_notice_big = f'<div style="margin-top: 8px; padding: 6px 10px; background: #3d2d2b; border-left: 3px solid #ffa94a; border-radius: 4px; font-size: 0.85em; color: #ffcc99;">🔄 Regenerated: {big_regenerate_count}x (timeout)</div>'
+    
     messages_html.append(f"""
             <div class="message big">
                 <div class="message-header">
@@ -412,32 +454,62 @@ Válaszolj röviden, {selected_language['instruction']} a következő üzenetre.
                     <span>gpt-oss:20b</span>
                 </div>
                 <div class="message-content">{big_out}</div>{thinking_html}
+                {regen_notice_big}
             </div>
 """)
     
     # Csak a válasz megy tovább, a thinking nem!
     last_message = big_out
 
-    # smollm2:135M válasz
-    print(f"\n\033[93m🐥 smollm2:135M válaszol...\033[0m")
-    smol_prompt = f"""Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
+    # smollm2:135M válasz with retry logic
+    smol_regenerate_count = 0
+    max_retries = 3
+    smol_out_raw = None
+    is_spam = False
+    
+    while smol_regenerate_count < max_retries:
+        print(f"\n\033[93m🐥 smollm2:135M válaszol...\033[0m")
+        if smol_regenerate_count > 0:
+            print(f"\033[93m⚠️  Újrapróbálás ({smol_regenerate_count}/{max_retries})...\033[0m")
+        
+        smol_prompt = f"""Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
 Válaszolj röviden (max 2-3 mondat), {selected_language['instruction']} a következő üzenetre.
 Bemenet:
 {last_message}"""
-    
-    # Stream output in real-time
-    process = subprocess.Popen(
-        ["ollama", "run", SMOL, smol_prompt],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1
-    )
-    
-    smol_out_raw = stream_output(process, color_code="\033[93m")
-    
-    # Ellenőrizzük, van-e spam/ismétlődés
-    is_spam = detect_spam_pattern(smol_out_raw)
+        
+        # Stream output in real-time
+        process = subprocess.Popen(
+            ["ollama", "run", SMOL, smol_prompt],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        
+        smol_out_raw = stream_output(process, color_code="\033[93m", timeout=30)
+        
+        # Check if timeout occurred
+        if smol_out_raw is None:
+            smol_regenerate_count += 1
+            print(f"\n\033[91m⚠️  Timeout - nincs válasz 30 másodperce\033[0m")
+            if smol_regenerate_count >= max_retries:
+                smol_out_raw = "[ERROR: smollm2:135M nem válaszolt időben több próbálkozás után sem]"
+                break
+            continue
+        
+        # Ellenőrizzük, van-e spam/ismétlődés
+        is_spam = detect_spam_pattern(smol_out_raw)
+        
+        if is_spam:
+            smol_regenerate_count += 1
+            print(f"\n\033[91m⚠️  Spam pattern észlelve (5+ azonos sor)\033[0m")
+            if smol_regenerate_count >= max_retries:
+                # Ha max retry után is spam, megtartjuk de jelezzük
+                break
+            continue
+        else:
+            # Success - no spam, no timeout
+            break
     
     if is_spam:
         # Ha spam, tisztítjuk és jelezzük
@@ -456,6 +528,12 @@ Bemenet:
     if is_spam:
         repetition_notice = '<div style="margin-top: 8px; padding: 8px; background: #3d2b2b; border-left: 3px solid #ff6b6b; border-radius: 4px; font-size: 0.85em; color: #ffb3b3;">⚠️ Megjegyzés: Az eredeti válasz túl sok ismétlődést tartalmazott. A kontextbe egy egyszerűsített verzió került továbbítva.</div>'
     
+    # Regeneration notice for smollm2
+    regen_notice_smol = ""
+    if smol_regenerate_count > 0:
+        reason = "timeout/spam" if is_spam else "timeout"
+        regen_notice_smol = f'<div style="margin-top: 8px; padding: 6px 10px; background: #3d2d2b; border-left: 3px solid #ffa94a; border-radius: 4px; font-size: 0.85em; color: #ffcc99;">🔄 Regenerated: {smol_regenerate_count}x ({reason})</div>'
+    
     messages_html.append(f"""
             <div class="message small">
                 <div class="message-header">
@@ -464,6 +542,7 @@ Bemenet:
                 </div>
                 <div class="message-content">{smol_out_display}</div>
                 {repetition_notice}
+                {regen_notice_smol}
             </div>
 """)
     

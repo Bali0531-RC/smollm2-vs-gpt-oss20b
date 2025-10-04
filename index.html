@@ -401,6 +401,23 @@
             };
             return date.toLocaleDateString('en-US', options);
         }
+        
+        function formatDateShort(date) {
+            const options = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric'
+            };
+            return date.toLocaleDateString('en-US', options);
+        }
+        
+        function formatTime(date) {
+            const options = { 
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return date.toLocaleTimeString('en-US', options);
+        }
 
         function updateStats() {
             document.getElementById('total-convs').textContent = conversations.length;
@@ -446,14 +463,14 @@
             container.innerHTML = filteredConversations.map(conv => `
                 <div class="conversation-card" onclick="openConversation('convs/${conv.filename}')">
                     <div class="card-header">
-                        <div class="card-date">📅 ${formatDate(conv.date).split(',')[0]}</div>
+                        <div class="card-date">📅 ${formatDateShort(conv.date)}</div>
                         <div class="card-badge">${conv.turns} turns</div>
                     </div>
                     <div class="card-preview">${conv.preview}</div>
                     <div class="card-meta">
                         <div class="card-meta-item">
                             <span>🕐</span>
-                            <span>${formatDate(conv.date).split(',')[1]}</span>
+                            <span>${formatTime(conv.date)}</span>
                         </div>
                         ${conv.language ? `<div class="card-meta-item">
                             <span>🌐</span>
