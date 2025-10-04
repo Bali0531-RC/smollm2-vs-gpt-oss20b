@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI Model Conversations - Comparing gpt-oss:20b and smollm2:135M">
+    <title>AI Conversations | gpt-oss:20b vs smollm2:135M</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-hover: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-tertiary: #6e7681;
+            --accent-primary: #58a6ff;
+            --accent-secondary: #f78166;
+            --accent-success: #56d364;
+            --border: #30363d;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 2rem 0;
+            margin-bottom: 3rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat-card {
+            background: var(--bg-tertiary);
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent-primary);
+        }
+        
+        .stat-label {
+            color: var(--text-tertiary);
+            font-size: 0.9rem;
+        }
+        
+        .filters {
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+        }
+        
+        .sort-select {
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        
+        .conversations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .conversation-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .conversation-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .conversation-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+        
+        .conversation-card:hover::before {
+            opacity: 1;
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        
+        .card-date {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .card-badge {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .card-preview {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .card-meta {
+            display: flex;
+            gap: 1.5rem;
+            color: var(--text-tertiary);
+            font-size: 0.9rem;
+        }
+        
+        .card-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 2rem 0;
+            margin-top: 4rem;
+            text-align: center;
+            color: var(--text-tertiary);
+        }
+        
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+            
+            .conversations-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                gap: 1rem;
+            }
+            
+            .stat-card {
+                padding: 0.75rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="hero">
+                <h1>🤖 AI Conversations</h1>
+                <p>Exploring conversations between gpt-oss:20b and smollm2:135M language models</p>
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-convs">-</div>
+                        <div class="stat-label">Conversations</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-turns">-</div>
+                        <div class="stat-label">Total Turns</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="filters">
+            <div class="search-box">
+                <input type="text" id="search" placeholder="🔍 Search conversations..." />
+            </div>
+            <select class="sort-select" id="sort">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+            </select>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading conversations...</p>
+        </div>
+
+        <div id="conversations" class="conversations-grid" style="display: none;"></div>
+
+        <div id="empty" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📭</div>
+            <h2>No conversations found</h2>
+            <p>Try adjusting your search or check back later for new conversations.</p>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>
+                AI Conversations Project | 
+                <a href="https://github.com/Bali0531-RC/smollm2-vs-gpt-oss20b" target="_blank">View on GitHub</a>
+            </p>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem;">
+                Powered by <a href="https://ollama.ai" target="_blank">Ollama</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        let conversations = [];
+        let filteredConversations = [];
+
+        async function loadConversations() {
+            try {
+                // Fetch the list of conversation files
+                const response = await fetch('convs/index.json');
+                const data = await response.json();
+                
+                // Parse conversations
+                conversations = data.conversations.map(conv => ({
+                    filename: conv.filename,
+                    date: parseDate(conv.filename),
+                    preview: conv.preview || 'Click to view conversation',
+                    turns: conv.turns || 0
+                }));
+
+                filteredConversations = [...conversations];
+                updateStats();
+                sortConversations();
+                renderConversations();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('conversations').style.display = 'grid';
+            } catch (error) {
+                console.error('Error loading conversations:', error);
+                document.getElementById('loading').innerHTML = '<p>Error loading conversations. Please try again later.</p>';
+            }
+        }
+
+        function parseDate(filename) {
+            // Extract date from filename: conversation_20251003_173505.html
+            const match = filename.match(/conversation_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+            if (match) {
+                const [, year, month, day, hour, minute, second] = match;
+                return new Date(year, month - 1, day, hour, minute, second);
+            }
+            return new Date();
+        }
+
+        function formatDate(date) {
+            const options = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        function updateStats() {
+            document.getElementById('total-convs').textContent = conversations.length;
+            const totalTurns = conversations.reduce((sum, conv) => sum + conv.turns, 0);
+            document.getElementById('total-turns').textContent = totalTurns;
+        }
+
+        function sortConversations() {
+            const sortBy = document.getElementById('sort').value;
+            filteredConversations.sort((a, b) => {
+                if (sortBy === 'newest') {
+                    return b.date - a.date;
+                } else {
+                    return a.date - b.date;
+                }
+            });
+        }
+
+        function filterConversations() {
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+            filteredConversations = conversations.filter(conv => {
+                const dateStr = formatDate(conv.date).toLowerCase();
+                const preview = conv.preview.toLowerCase();
+                return dateStr.includes(searchTerm) || preview.includes(searchTerm);
+            });
+            sortConversations();
+            renderConversations();
+        }
+
+        function renderConversations() {
+            const container = document.getElementById('conversations');
+            const emptyState = document.getElementById('empty');
+
+            if (filteredConversations.length === 0) {
+                container.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'grid';
+            emptyState.style.display = 'none';
+
+            container.innerHTML = filteredConversations.map(conv => `
+                <div class="conversation-card" onclick="openConversation('convs/${conv.filename}')">
+                    <div class="card-header">
+                        <div class="card-date">📅 ${formatDate(conv.date).split(',')[0]}</div>
+                        <div class="card-badge">${conv.turns} turns</div>
+                    </div>
+                    <div class="card-preview">${conv.preview}</div>
+                    <div class="card-meta">
+                        <div class="card-meta-item">
+                            <span>🕐</span>
+                            <span>${formatDate(conv.date).split(',')[1]}</span>
+                        </div>
+                        <div class="card-meta-item">
+                            <span>🧠</span>
+                            <span>AI vs AI</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openConversation(url) {
+            window.location.href = url;
+        }
+
+        // Event listeners
+        document.getElementById('search').addEventListener('input', filterConversations);
+        document.getElementById('sort').addEventListener('change', () => {
+            sortConversations();
+            renderConversations();
+        });
+
+        // Load conversations on page load
+        loadConversations();
+    </script>
+</body>
+</html>

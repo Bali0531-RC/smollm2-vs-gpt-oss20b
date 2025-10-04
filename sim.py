@@ -294,10 +294,34 @@ Bemenet:
 timestamp = datetime.now().strftime("%Y. %m. %d. %H:%M:%S")
 html_output = html_template_start + "".join(messages_html) + html_template_end.format(timestamp=timestamp)
 
-# mentés timestamp-nel
+# mentés timestamp-nel a convs/ mappába
 timestamp_file = datetime.now().strftime("%Y%m%d_%H%M%S")
-filename = f"conversation_{timestamp_file}.html"
+filename = f"convs/conversation_{timestamp_file}.html"
 with open(filename, "w", encoding="utf-8") as f:
     f.write(html_output)
 
 print(f"\nA beszélgetés mentve: {filename}")
+
+# Update index.json
+import json
+index_path = "convs/index.json"
+try:
+    with open(index_path, "r", encoding="utf-8") as f:
+        index_data = json.load(f)
+except FileNotFoundError:
+    index_data = {"conversations": []}
+
+# Add new conversation to index
+index_data["conversations"].append({
+    "filename": f"conversation_{timestamp_file}.html",
+    "preview": last_message[:100],  # Use the initial message as preview
+    "turns": TURNS
+})
+
+# Sort by filename (newest first)
+index_data["conversations"].sort(key=lambda x: x["filename"], reverse=True)
+
+with open(index_path, "w", encoding="utf-8") as f:
+    json.dump(index_data, f, indent=2, ensure_ascii=False)
+
+print(f"Index frissítve: {len(index_data['conversations'])} beszélgetés")
