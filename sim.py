@@ -100,20 +100,47 @@ def stream_output(process, prefix="", color_code="", timeout=30, max_total_time=
                 sys.stdout.write(f"{prefix}{line}")
             sys.stdout.flush()
             
-            # Real-time spam detection: check last 10 lines
-            if len(output_lines) >= 10:
-                recent_lines = [l.strip() for l in output_lines[-10:] if l.strip()]
+            # Real-time spam detection: check last 20 lines
+            if len(output_lines) >= 20:
+                recent_lines = [l.strip() for l in output_lines[-20:] if l.strip()]
                 line_counts = Counter(recent_lines)
-                # If any line appears 5+ times in last 10 lines, it's spam
+                
+                # Method 1: Single line repeated 5+ times
                 for line_text, count in line_counts.items():
                     if count >= 5 and len(line_text) > 5:  # Ignore very short lines
-                        print(f"\n\033[91m⚠️  Real-time spam detected! Killing process...\033[0m")
+                        print(f"\n\033[91m⚠️  Real-time spam detected (single line repeat)! Killing process...\033[0m")
                         try:
                             process.kill()
                             process.wait()
                         except:
                             pass
                         return None  # Indicate spam timeout
+                
+                # Method 2: Pattern detection (e.g., "1) ... 2) ..." repeating)
+                # Check if last 10 lines are identical to previous 10 lines
+                if len(output_lines) >= 20:
+                    last_10 = ''.join(output_lines[-10:])
+                    prev_10 = ''.join(output_lines[-20:-10])
+                    if last_10 == prev_10 and len(last_10.strip()) > 20:
+                        print(f"\n\033[91m⚠️  Real-time spam detected (pattern repeat)! Killing process...\033[0m")
+                        try:
+                            process.kill()
+                            process.wait()
+                        except:
+                            pass
+                        return None  # Indicate spam timeout
+            
+            # Early detection: if same line repeats 3 times in a row, likely spam
+            if len(output_lines) >= 3:
+                last_3 = [l.strip() for l in output_lines[-3:]]
+                if len(set(last_3)) == 1 and len(last_3[0]) > 10:  # All 3 identical
+                    print(f"\n\033[91m⚠️  Real-time spam detected (3x consecutive)! Killing process...\033[0m")
+                    try:
+                        process.kill()
+                        process.wait()
+                    except:
+                        pass
+                    return None  # Indicate spam timeout
         
         # Check if process finished
         if process.poll() is not None and not line:
