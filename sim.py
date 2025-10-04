@@ -2,12 +2,30 @@ import subprocess
 from datetime import datetime
 import re
 from collections import Counter
+import sys
 
 BIG = "gpt-oss:20b"
 SMOL = "smollm2:135M"
 
 TURNS = 10  # hány forduló legyen
 MAX_THINKING_LINES = 50  # Max gondolkodási sorok a gpt-oss számára
+
+def stream_output(process, prefix="", color_code=""):
+    """Stream subprocess output in real-time."""
+    output_lines = []
+    
+    for line in iter(process.stdout.readline, ''):
+        if line:
+            output_lines.append(line)
+            # Print with color if provided
+            if color_code:
+                sys.stdout.write(f"{color_code}{prefix}{line}\033[0m")
+            else:
+                sys.stdout.write(f"{prefix}{line}")
+            sys.stdout.flush()
+    
+    process.wait()
+    return ''.join(output_lines).strip()
 
 # kezdő üzenet a felhasználótól
 initial_message = "Szia! Kezdjünk el beszélgetni."
@@ -260,14 +278,26 @@ def detect_spam_pattern(text):
     return most_common[1] > 5
 
 for turn in range(TURNS):
-    print(f"\n=== Forduló {turn+1} ===")
+    print(f"\n{'='*60}")
+    print(f"  Forduló {turn+1}/{TURNS}")
+    print(f"{'='*60}")
 
     # gpt-oss:20b válasz
+    print(f"\n\033[94m🧠 gpt-oss:20b gondolkodik...\033[0m")
     big_prompt = f"""Te vagy a gpt-oss:20b. Csak a saját nevedben beszélj.
 Válaszolj röviden, magyarul a következő üzenetre. GONDOLKOZZ RÖVIDEN, max {MAX_THINKING_LINES} sor!
 {last_message}"""
     
-    big_out_raw = subprocess.check_output(["ollama", "run", BIG, big_prompt], text=True).strip()
+    # Stream output in real-time
+    process = subprocess.Popen(
+        ["ollama", "run", BIG, big_prompt],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1
+    )
+    
+    big_out_raw = stream_output(process, color_code="\033[96m")
     
     # Thinking rész kivágása és limitálása
     thinking_match = re.search(r'Thinking\.\.\.(.*?)\.\.\.done thinking\.', big_out_raw, re.DOTALL)
@@ -282,7 +312,7 @@ Válaszolj röviden, magyarul a következő üzenetre. GONDOLKOZZ RÖVIDEN, max 
         thinking_content = None
         big_out = big_out_raw
     
-    print(f"\n🧠 gpt-oss:20b:\n{big_out}")
+    print(f"\n\033[92m✓ gpt-oss:20b válasza rögzítve\033[0m")
     
     # HTML generálás thinking résszel
     thinking_html = ""
@@ -311,12 +341,22 @@ Válaszolj röviden, magyarul a következő üzenetre. GONDOLKOZZ RÖVIDEN, max 
     last_message = big_out
 
     # smollm2:135M válasz
+    print(f"\n\033[93m🐥 smollm2:135M válaszol...\033[0m")
     smol_prompt = f"""Te vagy a smollm2:135M. Csak a saját nevedben beszélj.
 Válaszolj röviden (max 2-3 mondat), magyarul a következő üzenetre.
 Bemenet:
 {last_message}"""
     
-    smol_out_raw = subprocess.check_output(["ollama", "run", SMOL, smol_prompt], text=True).strip()
+    # Stream output in real-time
+    process = subprocess.Popen(
+        ["ollama", "run", SMOL, smol_prompt],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1
+    )
+    
+    smol_out_raw = stream_output(process, color_code="\033[93m")
     
     # Ellenőrizzük, van-e spam/ismétlődés
     is_spam = detect_spam_pattern(smol_out_raw)
@@ -327,11 +367,11 @@ Bemenet:
         smol_out_display = smol_out_clean
         # A kontextbe csak egy rövid összefoglalót küldünk
         smol_out = "smollm2: [A válasz ismétlődéseket tartalmazott, összefoglalva: Nem értettem pontosan a kérdést.]"
-        print(f"\n🐥 smollm2:135M (tisztítva, ismétlődések észlelve):\n{smol_out}")
+        print(f"\n\033[91m⚠️  Ismétlődések észlelve - tisztítva és lerövidítve\033[0m")
     else:
         smol_out = smol_out_raw
         smol_out_display = smol_out_raw
-        print(f"\n🐥 smollm2:135M:\n{smol_out}")
+        print(f"\n\033[92m✓ smollm2:135M válasza rögzítve\033[0m")
     
     # HTML-be a tisztított változat kerül
     repetition_notice = ""
@@ -353,6 +393,8 @@ Bemenet:
     last_message = smol_out
 
 # HTML összeállítás
+print(f"\n{'='*60}")
+print("💾 Beszélgetés mentése...")
 timestamp = datetime.now().strftime("%Y. %m. %d. %H:%M:%S")
 html_output = html_template_start + "".join(messages_html) + html_template_end.format(timestamp=timestamp)
 
@@ -362,7 +404,7 @@ filename = f"convs/conversation_{timestamp_file}.html"
 with open(filename, "w", encoding="utf-8") as f:
     f.write(html_output)
 
-print(f"\nA beszélgetés mentve: {filename}")
+print(f"✓ Beszélgetés mentve: {filename}")
 
 # Update index.json
 import json
@@ -386,4 +428,6 @@ index_data["conversations"].sort(key=lambda x: x["filename"], reverse=True)
 with open(index_path, "w", encoding="utf-8") as f:
     json.dump(index_data, f, indent=2, ensure_ascii=False)
 
-print(f"Index frissítve: {len(index_data['conversations'])} beszélgetés")
+print(f"✓ Index frissítve: {len(index_data['conversations'])} beszélgetés")
+print(f"{'='*60}\n")
+print("\033[92m🎉 Kész! A beszélgetés sikeresen elkészült.\033[0m\n")
